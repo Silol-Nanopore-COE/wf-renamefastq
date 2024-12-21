@@ -31,7 +31,7 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_rena
 workflow WF_RENAMEFASTQ {
 
     take:
-    samplesheet // channel: samplesheet read in from --input
+    fastq // channel: samplesheet read in from --input
 
     main:
 
@@ -39,7 +39,7 @@ workflow WF_RENAMEFASTQ {
     // WORKFLOW: Run pipeline
     //
     RENAMEFASTQ (
-        samplesheet
+        fastq
     )
 
     emit:
@@ -66,14 +66,14 @@ workflow {
         params.monochrome_logs,
         args,
         params.outdir,
-        params.input
+        params.fastq
     )
 
     //
     // WORKFLOW: Run main workflow
     //
     WF_RENAMEFASTQ (
-        PIPELINE_INITIALISATION.out.samplesheet
+        PIPELINE_INITIALISATION.out.fastq
     )
 
     //

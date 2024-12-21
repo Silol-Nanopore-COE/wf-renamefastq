@@ -10,25 +10,20 @@
             "type": "object",
             "fa_icon": "fas fa-terminal",
             "description": "Define where the pipeline should find input data and save output data.",
-            "required": [
-                "input",
-                "outdir"
-            ],
+            "required": ["fastq", "outdir"],
             "properties": {
-                "input": {
+                "fastq": {
                     "type": "string",
-                    "format": "file-path",
-                    "exists": true,
-                    "schema": "assets/schema_input.json",
-                    "mimetype": "text/csv",
-                    "pattern": "^\\S+\\.csv$",
-                    "description": "Path to comma-separated file containing information about the samples in the experiment.",
-                    "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row.",
-                    "fa_icon": "fas fa-file-csv"
+                    "format": "path",
+                    "mimetype": "text/plain",
+                    "description": "Path to FASTQ files to use in the experiment.",
+                    "help_text": "This accepts one of three cases: (i) the path to a single FASTQ file; (ii) the path to a top-level directory containing FASTQ files; (iii) the path to a directory containing one level of sub-directories which in turn contain FASTQ files.",
+                    "fa_icon": "fas fa-folder-open"
                 },
                 "outdir": {
                     "type": "string",
                     "format": "directory-path",
+                    "default": "output",
                     "description": "The output directory where the results will be saved. You have to use absolute paths to storage on Cloud infrastructure.",
                     "fa_icon": "fas fa-folder-open"
                 },
@@ -43,6 +38,28 @@
                     "type": "string",
                     "description": "MultiQC report title. Printed as page header, used for filename if not otherwise specified.",
                     "fa_icon": "fas fa-file-signature"
+                }
+            }
+        },
+        "samples_options": {
+            "title": "Sample options",
+            "type": "object",
+            "fa_icon": "fas fa-terminal",
+            "description": "Parameters that relate to samples such as sample sheets and sample names.",
+            "properties": {
+                "sample_sheet": {
+                    "type": "string",
+                    "title": "Sample sheet",
+                    "mimetype": "text/csv",
+                    "format": "file-path",
+                    "pattern": "^\\S+\\.csv$",
+                    "description": "Path to comma-separated file containing information used to map barcodes to sample aliases. The sample sheet can be provided when the input data is a directory containing sub-directories with FASTQ files.",
+                    "help_text": "The sample sheet is a CSV file with, minimally, columns named `barcode` and `alias`. Extra columns are allowed. A `type` column is required for certain workflows and should have the following values; `test_sample`, `positive_control`, `negative_control`, `no_template_control`.",
+                    "fa_icon": "fas fa-file-csv"
+                },
+                "sample": {
+                    "type": "string",
+                    "description": "A single sample name for non-multiplexed data. Permissible if passing a single .fastq(.gz) file or directory of .fastq(.gz) files."
                 }
             }
         },
@@ -154,14 +171,7 @@
                     "description": "Method used to save pipeline results to output directory.",
                     "help_text": "The Nextflow `publishDir` option specifies which intermediate files should be saved to the output directory. This option tells the pipeline what method should be used to move these files. See [Nextflow docs](https://www.nextflow.io/docs/latest/process.html#publishdir) for details.",
                     "fa_icon": "fas fa-copy",
-                    "enum": [
-                        "symlink",
-                        "rellink",
-                        "link",
-                        "copy",
-                        "copyNoFollow",
-                        "move"
-                    ],
+                    "enum": ["symlink", "rellink", "link", "copy", "copyNoFollow", "move"],
                     "hidden": true
                 },
                 "email_on_fail": {
@@ -258,6 +268,9 @@
     "allOf": [
         {
             "$ref": "#/definitions/input_output_options"
+        },
+        {
+            "$ref": "#/definitions/samples_options"
         },
         {
             "$ref": "#/definitions/institutional_config_options"

@@ -10,7 +10,6 @@
 
 include { UTILS_NFVALIDATION_PLUGIN } from '../../nf-core/utils_nfvalidation_plugin'
 include { paramsSummaryMap          } from 'plugin/nf-validation'
-include { fromSamplesheet           } from 'plugin/nf-validation'
 include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline'
 include { completionEmail           } from '../../nf-core/utils_nfcore_pipeline'
 include { completionSummary         } from '../../nf-core/utils_nfcore_pipeline'
@@ -35,7 +34,7 @@ workflow PIPELINE_INITIALISATION {
     monochrome_logs   // boolean: Do not use coloured log outputs
     nextflow_cli_args //   array: List of positional nextflow CLI args
     outdir            //  string: The output directory where the results will be saved
-    input             //  string: Path to input samplesheet
+    input             //  string: Path to input FASTQ file(s)
 
     main:
 
@@ -74,30 +73,24 @@ workflow PIPELINE_INITIALISATION {
     )
 
     //
-    // Create channel from input file provided through params.input
+    // Create channel from input file provided through params.fastq
     //
     Channel
-        .fromSamplesheet("input")
+        .fromPath(input)
         .map {
-            meta, fastq_1, fastq_2 ->
-                if (!fastq_2) {
-                    return [ meta.id, meta + [ single_end:true ], [ fastq_1 ] ]
-                } else {
-                    return [ meta.id, meta + [ single_end:false ], [ fastq_1, fastq_2 ] ]
-                }
-        }
-        .groupTuple()
-        .map {
-            validateInputSamplesheet(it)
+            validateInput(it)
         }
         .map {
-            meta, fastqs ->
-                return [ meta, fastqs.flatten() ]
+            determineInputType(it)
         }
-        .set { ch_samplesheet }
+        .map { path, inputType ->
+            def result = handleInputType(path, inputType)
+            return result
+        }
+        .set { ch_fastq }
 
     emit:
-    samplesheet = ch_samplesheet
+    fastq       = ch_fastq
     versions    = ch_versions
 }
 
@@ -116,7 +109,7 @@ workflow PIPELINE_COMPLETION {
     outdir          //    path: Path to output directory where results will be published
     monochrome_logs // boolean: Disable ANSI colour codes in log output
     hook_url        //  string: hook URL for notifications
-    multiqc_report  //  string: Path to MultiQC report
+    multclaiqc_report  //  string: Path to MultiQC report
 
     main:
 
@@ -149,18 +142,90 @@ workflow PIPELINE_COMPLETION {
 */
 
 //
-// Validate channels from input samplesheet
+// Check validate input path
 //
-def validateInputSamplesheet(input) {
-    def (metas, fastqs) = input[1..2]
-
-    // Check that multiple runs of the same sample are of the same datatype i.e. single-end / paired-end
-    def endedness_ok = metas.collect{ it.single_end }.unique().size == 1
-    if (!endedness_ok) {
-        error("Please check input samplesheet -> Multiple runs of a sample must be of the same datatype i.e. single-end or paired-end: ${metas[0].id}")
+def validateInput(input) {
+    if (input) { valid_input = file(input, checkIfExists: true) 
+    } else {
+        error ("Input path $input does not exist.")
     }
 
-    return [ metas[0], fastqs ]
+    return valid_input
+}
+
+//
+// If the input is a file, check if it is a target file
+//
+def isTargetFile(file) {
+    fq_extensions = [".fastq", ".fastq.gz", ".fq", ".fq.gz"]
+    fq_extensions.any { ext -> file.name.endsWith(ext) }
+}
+
+// 
+// If the input is a directory, check if it contains target file(s)
+// 
+def isTargetFileinDir(dir) {
+    file(dir.resolve("*")).findAll { isTargetFile(it) }
+}
+//
+// Determine the input type
+//
+def determineInputType(input) {
+    // If the input type is a file
+    if (input.isFile()) {
+        if (!isTargetFile(input)) {
+            error ("Input file is not of required file type.")
+        }
+        return [ input, "SingleFile" ]
+    // If the input type is not a file or directory
+    } else if (!input.isDirectory()) {
+        error ("Input $input appears to be neither a file nor a directory.")
+    }
+    // If the input is a directory
+    // check if it contains target file(s)
+    boolean does_dir_has_target_file = isTargetFileinDir(input)
+    // check if it contains sub-directory
+    def sub_dirs = file(input.resolve('*'), type: "dir")
+    // check if the sub-directory contains target file(s)
+    def sub_dirs_with_target_files = sub_dirs.findAll { 
+        isTargetFileinDir(it) }.findAll { it.baseName != "unclassified" }
+    // declare valid fastq file extensions
+    fq_extensions = [".fastq", ".fastq.gz", ".fq", ".fq.gz"]
+    // re-use in error masseges
+    String target_files_str = "target files (ending in ${fq_extensions.collect{'\'' + it + '\''}.join(' / ')})"
+    // check if it is a top-level directory
+    if (does_dir_has_target_file) {
+        if (sub_dirs_with_target_files) {
+            error ("Input directory $valid_input cannot contain $target_files_str" +
+                "and also sub-directories with such files.")
+        }
+        return [ input, "TopLevelDir" ]
+    }
+    // check if the sub-directory contains the directory of target file(s) (sub-sub directory)
+    if (sub_dirs.any { 
+        def subsubdirs = file(it.resolve('*'), type: "dir")
+        subsubdirs.any { isTargetFileinDir(it) } 
+    }) {
+        error ("Input directory $valid_input cannot contain more " +
+        "than one level of sub-directories with $target_files_str .")
+    }
+    return [ input, "DirWithSubDirs" ]
+}
+
+// 
+// Handle the channels based on the input type
+// 
+def handleInputType (input, inputType) {
+    if (inputType == "SingleFile") {
+        return [ inputType, [ input ] ]
+    } else if (inputType == "TopLevelDir") {
+        return [ inputType, [ input ] ]
+    } else if (inputType == "DirWithSubDirs") {
+        def sub_dirs = file(input.resolve('*'), type: "dir")
+        def sub_dirs_with_target_files = sub_dirs.findAll { 
+        isTargetFileinDir(it) }.findAll { it.baseName != "unclassified" }
+        return [ inputType, sub_dirs_with_target_files ]
+    }
 }
 
 //
@@ -172,7 +237,6 @@ def toolCitationText() {
     // Uncomment function in methodsDescriptionText to render in MultiQC report
     def citation_text = [
             "Tools used in the workflow included:",
-            "FastQC (Andrews 2010),",
             "MultiQC (Ewels et al. 2016)",
             "."
         ].join(' ').trim()
@@ -185,7 +249,6 @@ def toolBibliographyText() {
     // Can use ternary operators to dynamically construct based conditions, e.g. params["run_xyz"] ? "<li>Author (2023) Pub name, Journal, DOI</li>" : "",
     // Uncomment function in methodsDescriptionText to render in MultiQC report
     def reference_text = [
-            "<li>Andrews S, (2010) FastQC, URL: https://www.bioinformatics.babraham.ac.uk/projects/fastqc/).</li>",
             "<li>Ewels, P., Magnusson, M., Lundin, S., & Käller, M. (2016). MultiQC: summarize analysis results for multiple tools and samples in a single report. Bioinformatics , 32(19), 3047–3048. doi: /10.1093/bioinformatics/btw354</li>"
         ].join(' ').trim()
 

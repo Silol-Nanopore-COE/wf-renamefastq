@@ -1,0 +1,21 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "$id": "https://raw.githubusercontent.com/wf/renamefastq/master/assets/schema_input.json",
+    "title": "wf/renamefastq pipeline - params.sample_sheet schema",
+    "description": "Schema for the file provided with params.sample_sheet",
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "barcode": {
+                "type": "string",
+                "pattern": "^barcode\\d\\d+$",
+                "errorMessage": "Values in 'barcode' column are incorrect format"
+            },
+            "alias": {
+                "type": "string"
+            }
+        },
+        "required": ["barcode", "alias"]
+    }
+}

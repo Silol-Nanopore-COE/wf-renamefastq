@@ -17,6 +17,7 @@ if (params.sample_sheet) { ch_samplesheet = Channel.fromPath(file(params.sample_
 include { SAMPLESHEET_CHECK      } from '../modules/local/samplesheet_check'
 include { FASTCAT                } from '../modules/local/fastcat'
 include { DEMULTIPLEX_DORADO     } from '../modules/local/demultiplex_dorado'
+include { SEQKIT_STATS           } from '../modules/local/seqkit_stats'
 
 //
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
@@ -182,9 +183,27 @@ workflow RENAMEFASTQ {
     FASTCAT (
         ch_fastq_for_fastcat
     )
-    ch_fastcat_stats = FASTCAT.out.concat_fastq
-    ch_versions      = ch_versions.mix(FASTCAT.out.versions.first())
-    
+    ch_fastcat_fastq  = FASTCAT.out.concat_fastq
+    ch_versions       = ch_versions.mix(FASTCAT.out.versions.first())
+
+    // 
+    // MODULE: Seqkit, Computing basic statistics
+    // 
+    ch_fastcat_fastq
+        .map { meta, fastq -> fastq }
+        .toList()
+        .map { list -> 
+            def new_meta = ["alias": "all_fastq"]
+                return [ new_meta, list ]
+        }
+        .set { ch_for_seqkit }
+
+    SEQKIT_STATS (
+        ch_for_seqkit
+    )
+    ch_fastq_stats  = SEQKIT_STATS.out.stats
+    ch_versions     = ch_versions.mix(SEQKIT_STATS.out.versions)
+
     //
     // Collate and save software versions
     //

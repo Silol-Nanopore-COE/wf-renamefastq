@@ -2,7 +2,7 @@ process DEMULTIPLEX_DORADO {
     tag "$meta.alias"
     label 'process_high'
 
-    container "piroonj/dorado:hla-v1.1.0"
+    container "piroonj/dorado:hla-v1.2.0"
 
     input:
     tuple val(meta), path(fastq_input), val(is_dir), val(kit_name)
@@ -18,7 +18,7 @@ process DEMULTIPLEX_DORADO {
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.alias}"
     def dir_input = is_dir ? "-r": ""
-    def VERSION = '1.1.0+8047a1ed+dirty' // WARN: Version information not provided by tool on CLI. Please update this string when changing container versions.
+    def VERSION = '1.1.1+e72f1492+dirty' // WARN: Version information not provided by tool on CLI. Please update this string when changing container versions.
     """
     dorado \\
         demux \\

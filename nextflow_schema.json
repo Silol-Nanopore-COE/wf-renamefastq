@@ -80,6 +80,8 @@
                     "type": "string",
                     "description": "Kit name used for demultiplexing. By default, kit name is 'HLA114-96'",
                     "enum": [ 
+                        "BiK-HLA114-96",
+                        "BiK-16S114-96",
                         "EXP-NBD103",
                         "EXP-NBD104",
                         "EXP-NBD114",
@@ -87,7 +89,6 @@
                         "EXP-NBD196",
                         "EXP-PBC001",
                         "EXP-PBC096",
-                        "HLA114-96",
                         "SQK-16S024",
                         "SQK-16S114-24",
                         "SQK-DRB004-24",
@@ -122,7 +123,7 @@
                         "VSK-VMK001",
                         "VSK-VMK004",
                         "VSK-VPS001" ],
-                    "default": "HLA114-96"
+                    "default": "BiK-HLA114-96"
                 }
             }
         },

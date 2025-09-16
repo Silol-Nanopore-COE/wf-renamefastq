@@ -137,7 +137,7 @@
                 "quality_filter": {
                     "type": "boolean",
                     "description": "Whether or not to filter reads by Q-score",
-                    "default": false
+                    "default": true
                 },
                 "q_score": {
                     "type": "integer",

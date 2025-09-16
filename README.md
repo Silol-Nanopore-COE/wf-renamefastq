@@ -16,31 +16,23 @@
 
 This workflow is used for renaming and/or demultiplexing the FASTQ file obtained from Oxford Nanopore Sequencer.
 
-<!-- TODO nf-core:
-   Complete this sentence with a 2-3 sentence summary of what types of data the pipeline ingests, a brief overview of the
-   major pipeline sections and the types of output it produces. You're giving an overview to someone new
-   to nf-core here, in 15-20 seconds. For an example, see https://github.com/nf-core/rnaseq/blob/master/README.md#introduction
--->
-
-<!-- TODO nf-core: Include a figure that guides the user through the major workflow steps. Many nf-core
-     workflows use the "tube map" design for that. See https://nf-co.re/docs/contributing/design_guidelines#examples for examples.   -->
-<!-- TODO nf-core: Fill in short bullet-pointed list of the default steps in the pipeline -->
-
 The workflow will perform the following:
-1. Checking a comma-separated sample sheet (*.csv) if it is provided.
-2. Demultiplexing when the `--demultiplex` parameter is specified.([Dorado](https://software-docs.nanoporetech.com/dorado/latest))
+1. Check a comma-separated sample sheet (*.csv) if it is provided.
+2. Demultiplex FASTQ files when `--demultiplex` is specified. ([Dorado](https://software-docs.nanoporetech.com/dorado/latest))
 3. Renaming FASTQ files and/or concatenating mulitple FASTQ file into a single FASTQ file. ([FASTCAT](https://github.com/epi2me-labs/fastcat))
-4. Computing basic statistics ([Seqkit](https://bioinf.shenwei.me/seqkit/usage))
+4. Filtering reads by a Phred quality score
+ (Q-score) when `--quality_filter` is specified. ([Seqkit](https://bioinf.shenwei.me/seqkit/usage))
+5. Computing simple statistics of demultiplexed / filtered reads. ([Seqkit](https://bioinf.shenwei.me/seqkit/usage))
 
 ## Compute requirements
 
 Recommended requirements:
 - CPUs = 16
-- Memory = 64GB
+- Memory = 64 GB
 
 Minimum requirements:
 - CPUs = 8
-- Memory = 32GB
+- Memory = 16 GB
 
 ## Input example
 
@@ -73,10 +65,10 @@ For the first and second cases (1 and 2), a sample name can be supplied with the
 For the last case (3), the data is assumed to be multiplexed with the names of the sub-directories as barcodes. A comma-separated sample sheet can be provided with the `--sample_sheet` parameter.
 
 ```
---sample_sheet samplesheet.csv
+--sample_sheet /path/to/samplesheet.csv
 ```
 
-The input samplesheet must contain two columns named `barcode` and `alias` as shown in the example below.
+The input samplesheet used for mapping barcode to sample aliases must contain two columns named `barcode` and `alias` as shown in the example below.
 
 ```csv
 barcode,alias
@@ -85,17 +77,11 @@ barcode02,A02
 barcode03,A03
 ```
 > [!IMPORTANT]
-For renaming, barcode names have to match with the names of sub-directories in the input directory.
+Barcodes must match with the names of sub-directories in the input FASTQ directory.
 
 ## Usage
 
-<!-- > [!NOTE]
-> If you are new to Nextflow and nf-core, please refer to [this page](https://nf-co.re/docs/usage/installation) on how to set-up Nextflow. Make sure to [test your setup](https://nf-co.re/docs/usage/introduction#how-to-run-a-pipeline) with `-profile test` before running the workflow on actual data. -->
-<!-- 
-TODO nf-core: Describe the minimum required steps to execute the pipeline, e.g. how to prepare samplesheets.
-     Explain what rows and columns represent. For instance (please edit as appropriate): -->
-
-### Renaming
+### Renaming FASTQ file
 
 - A single FASTQ file or top-level directory (case 1 and 2):
 
@@ -107,7 +93,7 @@ nextflow run wf-renamefastq \
    -profile <docker>
 ```
 
-- A directory with sub-directories (case 3):
+- A directory containing sub-directories (case 3):
 
 ```bash
 nextflow run wf-renamefastq \
@@ -117,9 +103,9 @@ nextflow run wf-renamefastq \
    -profile <docker>
 ```
 
-### Demultiplexing
+### Demultiplexing FASTQ file
 
-The input can be a single FASTQ file or a directory containing a single FASTQ file.
+The input can be both a single FASTQ file and a directory containing FASTQ files.
 
 ```bash
 nextflow run wf-renamefastq \

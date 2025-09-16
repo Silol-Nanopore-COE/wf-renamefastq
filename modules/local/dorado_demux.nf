@@ -1,4 +1,4 @@
-process DEMULTIPLEX_DORADO {
+process DORADO_DEMULTIPLEX {
     tag "$meta.alias"
     label 'process_high'
 
@@ -8,7 +8,7 @@ process DEMULTIPLEX_DORADO {
     tuple val(meta), path(fastq_input), val(is_dir), val(kit_name)
 
     output:
-    tuple val(meta), path("demux_dorado_fastq/*.fastq") , emit: demux_fastq
+    tuple val(meta), path("dorado_demux_fastq/*.fastq") , emit: demux_fastq
     path "versions.yml"                                 , emit: versions
 
     when:
@@ -26,7 +26,7 @@ process DEMULTIPLEX_DORADO {
         $dir_input \\
         -t $task.cpus \\
         --kit-name $kit_name \\
-        --output-dir demux_dorado_fastq \\
+        --output-dir dorado_demux_fastq \\
         $fastq_input
 
     cat <<-END_VERSIONS > versions.yml
@@ -39,7 +39,7 @@ process DEMULTIPLEX_DORADO {
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.alias}"
     """
-    mkdir demux_dorado_fastq
+    mkdir dorado_demux_fastq
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

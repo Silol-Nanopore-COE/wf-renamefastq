@@ -14,11 +14,11 @@ if (params.sample_sheet) { ch_samplesheet = Channel.fromPath(file(params.sample_
 //
 // MODULE: Loaded from modules/local/
 //
-include { SAMPLESHEET_CHECK           } from '../modules/local/samplesheet_check'
-include { FASTCAT  as CONCAT_FASTQ    } from '../modules/local/fastcat'
-include { FASTCAT  as RENAME_FASTQ    } from '../modules/local/fastcat'
-include { DEMULTIPLEX_DORADO          } from '../modules/local/demultiplex_dorado'
-include { SEQKIT_STATS                } from '../modules/local/seqkit_stats'
+include { SAMPLESHEET_CHECK      } from '../modules/local/samplesheet_check'
+include { DORADO_DEMULTIPLEX     } from '../modules/local/dorado_demux'
+include { FASTCAT                } from '../modules/local/fastcat'
+include { SEQKIT_SEQ             } from '../modules/local/seqkit_seq'
+include { SEQKIT_STATS           } from '../modules/local/seqkit_stats'
 
 //
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
@@ -103,45 +103,21 @@ workflow RENAMEFASTQ {
     } else {
         ch_fastq_for_demux  = Channel.empty()
 
-        // Check if the input FASTQ requires to be concatenated before demultiplexing
-        ch_fastq_input.topLevelDir
-            .map { meta, fastq -> 
-                def num_files = fastq.listFiles().size()
-                return [ meta, fastq, num_files ]
-            }
-            .branch { meta, fastq, num_files ->
-                single: num_files == 1
-                    return [ meta, fastq ]
-                multiple: num_files > 1
-                    return [ meta, fastq ]
-            }
-            .set { ch_fastq_in_topLevelDir }
-        
-        //
-        // MODULE: FASTCAT, Concatenate multiple FASTQ files into a single FASTQ file
-        //
-        CONCAT_FASTQ (
-            ch_fastq_in_topLevelDir.multiple
-        )
-        ch_concat_fastq = CONCAT_FASTQ.out.concat_fastq
-        ch_versions     = ch_versions.mix(CONCAT_FASTQ.out.versions)
-
         ch_fastq_for_demux
             .mix(ch_fastq_input.singleFile.map { meta, fastq -> [ meta, fastq, false ] })
-            .mix(ch_fastq_in_topLevelDir.single.map { meta, fastq -> [ meta, fastq, true ] })
-            .mix(ch_concat_fastq.map { meta, fastq -> [ meta, fastq, false ] })
+            .mix(ch_fastq_input.topLevelDir.map { meta, fastq -> [ meta, fastq, true ]})
             .map { meta, fastq, is_dir -> [ meta, fastq, is_dir, params.kit_name ] }
             .set { ch_input_for_demux }
-
+            
         //
         // MODULE: DORADO, Demultiplex FASTQ file
         //  
-        DEMULTIPLEX_DORADO (
+        DORADO_DEMULTIPLEX (
             ch_input_for_demux 
         )
-        ch_demux_fastq = DEMULTIPLEX_DORADO.out.demux_fastq
-        ch_versions    = ch_versions.mix(DEMULTIPLEX_DORADO.out.versions)
-        
+        ch_demux_fastq = DORADO_DEMULTIPLEX.out.demux_fastq
+        ch_versions    = ch_versions.mix(DORADO_DEMULTIPLEX.out.versions)
+
         if (params.sample_sheet) {
             // Separate demultiplexed and unclassified reads to different channels
             ch_demux_fastq
@@ -210,26 +186,48 @@ workflow RENAMEFASTQ {
     // 
     // MODULE: FASTCAT, Concatenate/Rename FASTQ files
     // 
-    RENAME_FASTQ (
+    FASTCAT (
         ch_fastq_for_fastcat
     )
-    ch_renamed_fastq  = RENAME_FASTQ.out.concat_fastq
-    ch_versions       = ch_versions.mix(RENAME_FASTQ.out.versions.first())
+    ch_renamed_fastq  = FASTCAT.out.concat_fastq
+    ch_versions       = ch_versions.mix(FASTCAT.out.versions.first())
 
-    // 
-    // MODULE: Seqkit, Computing basic statistics
-    // 
-    ch_renamed_fastq
+    // Create the input channel for Seqkit stats
+    ch_fastq_for_seqkit = Channel.empty()
+
+    if (params.quality_filter) {
+        ch_renamed_fastq
+            .map { meta, fastq -> [ meta, fastq, params.q_score ] }
+            .set { ch_fastq_for_filter }
+        
+        // 
+        // MODULE: SEQKIT, Filtering reads by Q-score
+        // 
+        SEQKIT_SEQ (
+            ch_fastq_for_filter
+        )
+        ch_filtered_fastq  = SEQKIT_SEQ.out.filtered_fastq
+        ch_versions        = ch_versions.mix(SEQKIT_SEQ.out.versions.first())
+
+        ch_fastq_for_seqkit = ch_fastq_for_seqkit.mix(ch_filtered_fastq)
+    } else {
+        ch_fastq_for_seqkit = ch_fastq_for_seqkit.mix(ch_renamed_fastq)
+    }
+
+    ch_fastq_for_seqkit
         .map { meta, fastq -> fastq }
         .toList()
         .map { list -> 
             def new_meta = ["alias": "all_fastq"]
                 return [ new_meta, list ]
         }
-        .set { ch_for_seqkit }
+        .set { ch_list_fastq }
 
+    //
+    // MODULE: SEQKIT, Computing statistics of FASTQ files
+    //  
     SEQKIT_STATS (
-        ch_for_seqkit
+        ch_list_fastq
     )
     ch_fastq_stats  = SEQKIT_STATS.out.stats
     ch_versions     = ch_versions.mix(SEQKIT_STATS.out.versions)

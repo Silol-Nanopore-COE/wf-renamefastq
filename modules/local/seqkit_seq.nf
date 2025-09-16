@@ -1,4 +1,4 @@
-process SEQKIT_STATS {
+process SEQKIT_SEQ {
     tag "${meta.alias}"
     label 'process_low'
 
@@ -6,31 +6,27 @@ process SEQKIT_STATS {
     container "quay.io/biocontainers/seqkit:2.9.0--h9ee0642_0"
 
     input:
-    tuple val(meta), path(reads_list)
+    tuple val(meta), path(fastq), val(q_score)
 
     output:
-    tuple val(meta), path("*_statistics.tsv")  , emit: stats
-    path "versions.yml"                        , emit: versions
+    tuple val(meta), path("*_filtered_Q${q_score}.fastq.gz")    , emit: filtered_fastq
+    path "versions.yml"                                         , emit: versions
 
     when:
     task.ext.when == null || task.ext.when
 
     script:
-    def args = task.ext.args ?: '-a'
+    def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.alias}"
     """
-    mkdir all_fastq
-    mv $reads_list all_fastq
-    
-    seqkit stats \\
-        --tabular \\
+    seqkit \\
+        seq \\
         --threads ${task.cpus} \\
+        -Q ${q_score} \\
         ${args} \\
-        all_fastq/*.fastq.gz > read_stats.tsv
+        ${fastq} \\
+        | gzip > ${prefix}_filtered_Q${q_score}.fastq.gz
 
-    # select some columns
-    cut -f 1-8,17 read_stats.tsv > ${prefix}_statistics.tsv
-    
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         seqkit: \$( seqkit version | sed 's/seqkit v//' )
@@ -40,7 +36,7 @@ process SEQKIT_STATS {
     stub:
     def prefix = task.ext.prefix ?: "${meta.alias}"
     """
-    touch ${prefix}_stats.tsv
+    touch ${prefix}_filtered_${q_score}.fastq.gz
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

@@ -1,6 +1,6 @@
 process DORADO_DEMULTIPLEX {
     tag "$meta.alias"
-    label 'process_high'
+    label 'process_medium'
 
     container "piroonj/dorado:hla-v1.2.0"
 
